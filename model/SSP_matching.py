@@ -19,24 +19,30 @@ class SSP_MatchingNet(nn.Module):
     def set_support_set(self, img_s_list, mask_s_list):
         feature_fg_list = []
         feature_bg_list = []
+        self_device = next(self.parameters()).device
         # feature maps of support images
         for k in range(len(img_s_list)):
+            img_0 = img_s_list[k].to(self_device)
             with torch.no_grad():
-                s_0 = self.layer0(img_s_list[k])
+                s_0 = self.layer0(img_0)
                 s_0 = self.layer1(s_0)
             s_0 = self.layer2(s_0)
             s_0 = self.layer3(s_0)
             # foreground(target class) and background prototypes pooled from K support features
-            feature_fg = self.masked_average_pooling(s_0, (mask_s_list[k] == 1).float())[None, :]
-            feature_bg = self.masked_average_pooling(s_0, (mask_s_list[k] == 0).float())[None, :]
+            mask_0 = mask_s_list[k].to(self_device)
+            feature_fg = self.masked_average_pooling(s_0, (mask_0 == 1).float())[None, :]
+            feature_bg = self.masked_average_pooling(s_0, (mask_0 == 0).float())[None, :]
             feature_fg_list.append(feature_fg)
             feature_bg_list.append(feature_bg)
+
+            del img_0, s_0, mask_0, feature_fg, feature_bg
         
         # average K foreground prototypes and K background prototypes
         self.FP = torch.mean(torch.cat(feature_fg_list, dim=0), dim=0).unsqueeze(-1).unsqueeze(-1)
         self.BP = torch.mean(torch.cat(feature_bg_list, dim=0), dim=0).unsqueeze(-1).unsqueeze(-1)
 
         del feature_fg_list, feature_bg_list
+        torch.cuda.empty_cache()
     
     def fast_forward(self, img_q):
         h, w = img_q.shape[-2:]
