@@ -12,10 +12,11 @@ class SSP_MatchingNet(nn.Module):
         self.layer0 = nn.Sequential(backbone.conv1, backbone.bn1, backbone.relu, backbone.maxpool)
         self.layer1, self.layer2, self.layer3 = backbone.layer1, backbone.layer2, backbone.layer3
         self.refine = refine
-    
-    def fast_forward(self, img_s_list, mask_s_list, img_q, mask_q):
-        h, w = img_q.shape[-2:]
 
+        self.FP = None
+        self.BP = None
+    
+    def set_support_set(self, img_s_list, mask_s_list):
         feature_fg_list = []
         feature_bg_list = []
         # feature maps of support images
@@ -32,10 +33,17 @@ class SSP_MatchingNet(nn.Module):
             feature_bg_list.append(feature_bg)
         
         # average K foreground prototypes and K background prototypes
-        FP = torch.mean(torch.cat(feature_fg_list, dim=0), dim=0).unsqueeze(-1).unsqueeze(-1)
-        BP = torch.mean(torch.cat(feature_bg_list, dim=0), dim=0).unsqueeze(-1).unsqueeze(-1)
+        self.FP = torch.mean(torch.cat(feature_fg_list, dim=0), dim=0).unsqueeze(-1).unsqueeze(-1)
+        self.BP = torch.mean(torch.cat(feature_bg_list, dim=0), dim=0).unsqueeze(-1).unsqueeze(-1)
 
         del feature_fg_list, feature_bg_list
+    
+    def fast_forward(self, img_q):
+        h, w = img_q.shape[-2:]
+        assert self.FP is not None and self.BP is not None
+        FP = self.FP
+        BP = self.BP
+        
         # feature map of query image
         with torch.no_grad():
             q_0 = self.layer0(img_q)
