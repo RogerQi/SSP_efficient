@@ -1,4 +1,4 @@
-import model.resnet as resnet
+from .resnet import __dict__
 
 import torch
 from torch import nn
@@ -6,9 +6,9 @@ import torch.nn.functional as F
 import pdb
 
 class SSP_MatchingNet(nn.Module):
-    def __init__(self, backbone, refine=False):
+    def __init__(self, backbone, refine=False, pretrained=True):
         super(SSP_MatchingNet, self).__init__()
-        backbone = resnet.__dict__[backbone](pretrained=True)
+        backbone = __dict__[backbone](pretrained=pretrained)
         self.layer0 = nn.Sequential(backbone.conv1, backbone.bn1, backbone.relu, backbone.maxpool)
         self.layer1, self.layer2, self.layer3 = backbone.layer1, backbone.layer2, backbone.layer3
         self.refine = refine
