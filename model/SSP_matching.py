@@ -16,10 +16,13 @@ class SSP_MatchingNet(nn.Module):
         self.FP = None
         self.BP = None
     
+    def get_self_device(self):
+        return next(self.parameters()).device
+    
     def set_support_set(self, img_s_list, mask_s_list):
         feature_fg_list = []
         feature_bg_list = []
-        self_device = next(self.parameters()).device
+        self_device = self.get_self_device()
         # feature maps of support images
         for k in range(len(img_s_list)):
             img_0 = img_s_list[k].to(self_device)
@@ -49,6 +52,9 @@ class SSP_MatchingNet(nn.Module):
         assert self.FP is not None and self.BP is not None
         FP = self.FP
         BP = self.BP
+
+        self_device = self.get_self_device()
+        img_q = img_q.to(self_device)
         
         # feature map of query image
         with torch.no_grad():
