@@ -4,6 +4,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 import pdb
+from tqdm import trange
 
 class SSP_MatchingNet(nn.Module):
     def __init__(self, backbone, refine=False, pretrained=True):
@@ -19,16 +20,16 @@ class SSP_MatchingNet(nn.Module):
     def get_self_device(self):
         return next(self.parameters()).device
     
+    @torch.no_grad()
     def set_support_set(self, img_s_list, mask_s_list):
         feature_fg_list = []
         feature_bg_list = []
         self_device = self.get_self_device()
         # feature maps of support images
-        for k in range(len(img_s_list)):
+        for k in trange(len(img_s_list)):
             img_0 = img_s_list[k].to(self_device)
-            with torch.no_grad():
-                s_0 = self.layer0(img_0)
-                s_0 = self.layer1(s_0)
+            s_0 = self.layer0(img_0)
+            s_0 = self.layer1(s_0)
             s_0 = self.layer2(s_0)
             s_0 = self.layer3(s_0)
             # foreground(target class) and background prototypes pooled from K support features
@@ -38,6 +39,8 @@ class SSP_MatchingNet(nn.Module):
             feature_fg_list.append(feature_fg)
             feature_bg_list.append(feature_bg)
 
+            img_s_list[k].to('cpu')
+            mask_s_list[k].to('cpu')
             del img_0, s_0, mask_0, feature_fg, feature_bg
         
         # average K foreground prototypes and K background prototypes
@@ -47,6 +50,7 @@ class SSP_MatchingNet(nn.Module):
         del feature_fg_list, feature_bg_list
         torch.cuda.empty_cache()
     
+    @torch.no_grad()
     def fast_forward(self, img_q):
         h, w = img_q.shape[-2:]
         assert self.FP is not None and self.BP is not None
