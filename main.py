@@ -1,4 +1,5 @@
 from dataset.fewshot import FewShot
+from dataset.fss import DatasetFSS
 from model.SSP_matching import SSP_MatchingNet
 from util.utils import count_params, set_seed, mIOU
 
@@ -23,11 +24,11 @@ def parse_args():
     parser.add_argument('--dataset',
                         type=str,
                         default='pascal',
-                        choices=['pascal', 'coco'],
+                        choices=['pascal', 'coco', 'fss'],
                         help='training dataset')
     parser.add_argument('--batch-size',
                         type=int,
-                        default=4,
+                        default=2,
                         help='batch size of training')
     parser.add_argument('--lr',
                         type=float,
@@ -73,7 +74,15 @@ def parse_args():
 def evaluate(model, dataloader, args):
     tbar = tqdm(dataloader)
 
-    num_classes = 21 if args.dataset == 'pascal' else 81
+    if args.dataset == 'pascal':
+        num_classes = 21
+    elif args.dataset == 'coco':
+        num_classes = 81
+    elif args.dataset == 'fss':
+        num_classes = 1000
+    else:
+        raise ValueError('Wrong dataset!')
+
     metric = mIOU(num_classes)
 
     for i, (img_s_list, mask_s_list, img_q, mask_q, cls, _, id_q) in enumerate(tbar):
@@ -99,15 +108,25 @@ def main():
     args = parse_args()
     print('\n' + str(args))
 
+    if args.dataset == 'fss':
+        assert args.fold == 0
+
     save_path = 'outdir/models/%s/fold_%i' % (args.dataset, args.fold)
     os.makedirs(save_path, exist_ok=True)
 
-    trainset = FewShot(args.dataset, args.data_root, args.crop_size,
+    if args.dataset == 'pascal' or args.dataset == 'coco':
+        trainset = FewShot(args.dataset, args.data_root, args.crop_size,
                        'train', args.fold, args.shot, args.snapshot)
+        testset = FewShot(args.dataset, args.data_root.replace('train_coco', 'val_coco'), None, 'val',
+                      args.fold, args.shot, 1000 if args.dataset == 'pascal' else 4000)
+    elif args.dataset == 'fss':
+        trainset = DatasetFSS(args.data_root, 'trn', args.shot, args.crop_size, args.snapshot)
+        testset = DatasetFSS(args.data_root, 'val', args.shot, None, 4000)
+    else:
+        raise ValueError('Wrong dataset!')
+
     trainloader = DataLoader(trainset, batch_size=args.batch_size, shuffle=True,
                              pin_memory=True, num_workers=4, drop_last=True)
-    testset = FewShot(args.dataset, args.data_root.replace('train_coco', 'val_coco'), None, 'val',
-                      args.fold, args.shot, 1000 if args.dataset == 'pascal' else 4000)
     testloader = DataLoader(testset, batch_size=1, shuffle=False,
                             pin_memory=True, num_workers=4, drop_last=False)
 
